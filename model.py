@@ -1,9 +1,17 @@
 import torch
 import torch.nn as nn
+from torch.nn.functional import softmax
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
 from torch.utils.tensorboard import SummaryWriter
+from sksurv.linear_model import CoxPHSurvivalAnalysis
+from losses import CensoredMSELoss
+from utils import compute_time_to_event
 import numpy as np
+import pandas as pd
 import logging
 
 # Configure logging
@@ -14,42 +22,97 @@ logger = logging.getLogger(__name__)
 
 
 class LungCancerDataset(Dataset):
-    def __init__(self, scans, events, times):
-        self.scans = scans  # 3D scans (NumPy array of shape [N, D, H, W])
-        self.events = events  # Binary event indicators (1=event, 0=censored)
-        self.times = times  # Survival times
+    def __init__(self, train_indices, test_indices, scans_path, demographic_path, return_train):
+        self.clinical_vars = pd.load_csv(demographic_path)
+        self.scans = np.load(scans_path)
+
+        self.train_indices = train_indices
+        self.test_indices = test_indices
+        self.train_clinical, self.test_clinical = self.preprocess_clinical_vars(self.clinical_vars)
+
+        if return_train:
+            self.scans = torch.Tensor(self.scans[self.train_indices]).to(torch.float32).unsqueeze(0) # do we need unsqueeze?
+            self.clinical_vars = torch.Tensor(self.train_clinical).to(torch.float32)
+            self.events = torch.Tensor(self.clinical_vars["deadstatus.event"].values[self.train_indices]).to(torch.bool)
+            self.times = torch.Tensor(self.clinical_vars["Survival.time"].values[self.train_indices]).to(torch.float32)
+        else:
+            self.scans = torch.Tensor(self.scans[self.test_indices]).to(torch.float32)
+            self.clinical_vars = torch.Tensor(self.test_clinical).to(torch.float32)
+            self.events = torch.Tensor(self.clinical_vars["deadstatus.event"].values[self.test_indices]).to(torch.bool)
+            self.times = torch.Tensor(self.clinical_vars["Survival.time"].values[self.test_indices]).to(torch.float32)
 
     def __len__(self):
         return len(self.scans)
+    
+    def preprocess_clinical_vars(self, clinical_vars):
+
+        numeric_features = ["age"]
+        categorical_features = ["Histology", "gender"]
+        ordinal_features = ["clinical.T.Stage", "Clinical.N.Stage", "Clinical.M.Stage", "Overall.Stage"]
+
+        numeric_transformer = Pipeline(
+            steps=[("scaler", StandardScaler())]
+        )
+        categorical_transformer = Pipeline(
+            steps=[
+                ("onehot", OneHotEncoder(handle_unknown="ignore")),
+            ]
+        )
+        ordinal_transformer = Pipeline(
+            steps=[
+                ("ordinal", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=np.nan)),
+            ]
+        )
+
+        preprocessor = ColumnTransformer(
+            transformers=[
+                ("num", numeric_transformer, numeric_features),
+                ("cat", categorical_transformer, categorical_features),
+                ("ord", ordinal_transformer, ordinal_features),
+            ]
+        )
+        train_clinical = preprocessor.fit_transform(clinical_vars)
+        test_clinical = preprocessor.transform(clinical_vars)
+        return train_clinical, test_clinical
 
     def __getitem__(self, idx):
         return (
-            torch.tensor(self.scans[idx], dtype=torch.float32).unsqueeze(
-                0
-            ),  # Add channel dimension
-            torch.tensor(self.events[idx], dtype=torch.float32),
-            torch.tensor(self.times[idx], dtype=torch.float32),
+            self.scans[idx],  # Add channel dimension
+            self.events[idx],
+            self.times[idx],
+            self.clinical_vars[idx],
         )
+    
 
 
 class TimeToDeath3DCNN(nn.Module):
-    def __init__(self):
+    def __init__(self,
+                 in_channels,
+                 out_channels_conv1,
+                 out_channels_conv2,
+                 out_channels_conv3,
+                 kernel_conv,
+                 kernel_pool,
+                 dropout):
+        
         super(TimeToDeath3DCNN, self).__init__()
-        self.conv1 = nn.Conv3d(1, 16, kernel_size=3, stride=1, padding=1)
-        self.bn1 = nn.BatchNorm3d(16)
-        self.pool1 = nn.MaxPool3d(kernel_size=2, stride=2)
+        self.conv1 = nn.Conv3d(in_channels, out_channels_conv1, kernel_size=kernel_conv, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm3d(out_channels_conv1)
+        self.pool1 = nn.MaxPool3d(kernel_size=kernel_pool, stride=2)
 
-        self.conv2 = nn.Conv3d(16, 32, kernel_size=3, stride=1, padding=1)
-        self.bn2 = nn.BatchNorm3d(32)
-        self.pool2 = nn.MaxPool3d(kernel_size=2, stride=2)
+        self.conv2 = nn.Conv3d(out_channels_conv1, out_channels_conv2, kernel_size=kernel_conv, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm3d(out_channels_conv2)
+        self.pool2 = nn.MaxPool3d(kernel_size=kernel_pool, stride=2)
 
-        self.conv3 = nn.Conv3d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.bn3 = nn.BatchNorm3d(64)
+        self.conv3 = nn.Conv3d(out_channels_conv2, out_channels_conv3, kernel_size=kernel_conv, stride=1, padding=1)
+        self.bn3 = nn.BatchNorm3d(out_channels_conv3)
         self.global_pool = nn.AdaptiveAvgPool3d(1)  # Global pooling
 
-        self.fc1 = nn.Linear(64, 32)
-        self.dropout = nn.Dropout(0.5)
-        self.fc2 = nn.Linear(32, 1)  # Output: Predicted survival time
+        self.fc1 = nn.Linear(out_channels_conv3, out_channels_conv2)
+        self.dropout = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(out_channels_conv2, 1)  # Output: Predicted probability threshold of survival
+
+        self.survival_estimator = CoxPHSurvivalAnalysis()
 
     def forward(self, x):
         x = self.pool1(torch.relu(self.bn1(self.conv1(x))))
@@ -57,41 +120,36 @@ class TimeToDeath3DCNN(nn.Module):
         x = self.global_pool(torch.relu(self.bn3(self.conv3(x))))
         x = torch.flatten(x, 1)
         x = torch.relu(self.fc1(x))
-        x = self.dropout(x)
-        x = self.fc2(x)  # Predicted time-to-event
-        return x
+        embedding = self.dropout(x)
+        proba_thresh = self.fc2(embedding)  # Predicted time-to-event
+        proba_thresh = softmax(proba_thresh)
+        return embedding, proba_thresh
+    
+    def fit_survival_estimator(self, all_features, events, times):
+        target = np.array([(i, j) for i, j in zip(events.detach().numpy(), times.detach().numpy())])
+        survival_estimator = self.survival_estimator.fit(all_features, target) # here target = (events, times)
+        return survival_estimator
 
 
-# Weighted Loss Function for Time-to-Death with Censoring
-class CensoredMSELoss(nn.Module):
-    def forward(self, predictions, events, times):
-        """
-        predictions: Predicted survival times (N,)
-        events: Binary event indicators (N,)
-        times: True survival times (N,)
-        """
-        uncensored_loss = torch.mean(
-            (predictions[events == 1] - times[events == 1]) ** 2
-        )
-        censored_loss = torch.mean(
-            torch.relu(predictions[events == 0] - times[events == 0]) ** 2
-        )
-        return uncensored_loss + 0.1 * censored_loss
+def train_model(model, train_dataset, batch_size, criterion, optimizer, writer, device, num_epochs, gamma):
 
-
-def train_model(model, dataloader, criterion, optimizer, writer, device, num_epochs=10):
+    dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     model.train()
     for epoch in range(num_epochs):
         epoch_loss = 0
-        for batch in dataloader:
+        for batch in dataloader: # clinical vars too
             scans, events, times = batch
             scans, events, times = scans.to(device), events.to(device), times.to(device)
 
             optimizer.zero_grad()
-            predictions = model(scans).squeeze()
-            loss = criterion(predictions, events, times)
+            embedding, proba_thresh = model(scans)
+            all_features = np.concatenate((embedding.detach().numpy(), clinical_vars.detach().numpy()), axis=1)
+            survival_estimator = model.fit_survival_estimator(all_features, events, times)
+            surv_funcs = survival_estimator.predict_survival_function(all_features)
+            survival_times = compute_time_to_event(surv_funcs, thershold = proba_thresh)
+            loss = criterion(survival_times, events, times, gamma)
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
