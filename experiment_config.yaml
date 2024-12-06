@@ -1,0 +1,34 @@
+project: "Death3DCNN"
+experiment_name: "exp1"
+hypothesis: "-"
+
+# Model dimensions
+in_channels: 1
+out_channels_conv1: 16
+out_channels_conv2: 32
+out_channels_conv3: 64
+output_dim_target: 50
+kernel_conv: 3
+kernel_pool: 2
+dropout: 0.5
+
+# MatAutoencoder options
+skip_enc1: False
+ReEig: False
+
+# Pretrained models options
+mat_ae_pretrained: False
+target_ae_pretrained: False
+pretrained_mat_ae_exp: "internal_mat_ae_abcd"
+pretrained_target_ae_exp: "target_ae"
+best_mat_ae_fold: 4
+best_target_ae_fold: 1
+synth_exp: False
+
+# Training parameters
+scans_path: "/data/..."
+clinical_vars_path: "/data/NSCLC-Radiomics-Lung1.clinical-version3-Oct-2019.csv"
+
+# Directory for saving results
+work_dir: "." # stick to absolute paths
+results_dir: "./results"
