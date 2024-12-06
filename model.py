@@ -140,8 +140,8 @@ def train_model(model, train_dataset, batch_size, criterion, optimizer, writer, 
     for epoch in range(num_epochs):
         epoch_loss = 0
         for batch in dataloader: # clinical vars too
-            scans, events, times = batch
-            scans, events, times = scans.to(device), events.to(device), times.to(device)
+            scans, events, times, clinical_vars = batch
+            scans, events, times, clinical_vars = scans.to(device), events.to(device), times.to(device), clinical_vars.to(device)
 
             optimizer.zero_grad()
             embedding, proba_thresh = model(scans)
