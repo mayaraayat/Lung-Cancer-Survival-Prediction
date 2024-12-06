@@ -3,9 +3,6 @@ import torch.nn as nn
 from torch.nn.functional import softmax
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
-from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.pipeline import Pipeline
 from torch.utils.tensorboard import SummaryWriter
 from sksurv.linear_model import CoxPHSurvivalAnalysis
 from losses import CensoredMSELoss
@@ -19,71 +16,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-
-class LungCancerDataset(Dataset):
-    def __init__(self, train_indices, test_indices, scans_path, demographic_path, return_train):
-        self.clinical_vars = pd.load_csv(demographic_path)
-        self.scans = np.load(scans_path)
-
-        self.train_indices = train_indices
-        self.test_indices = test_indices
-        self.train_clinical, self.test_clinical = self.preprocess_clinical_vars(self.clinical_vars)
-
-        if return_train:
-            self.scans = torch.Tensor(self.scans[self.train_indices]).to(torch.float32).unsqueeze(0) # do we need unsqueeze?
-            self.clinical_vars = torch.Tensor(self.train_clinical).to(torch.float32)
-            self.events = torch.Tensor(self.clinical_vars["deadstatus.event"].values[self.train_indices]).to(torch.bool)
-            self.times = torch.Tensor(self.clinical_vars["Survival.time"].values[self.train_indices]).to(torch.float32)
-        else:
-            self.scans = torch.Tensor(self.scans[self.test_indices]).to(torch.float32)
-            self.clinical_vars = torch.Tensor(self.test_clinical).to(torch.float32)
-            self.events = torch.Tensor(self.clinical_vars["deadstatus.event"].values[self.test_indices]).to(torch.bool)
-            self.times = torch.Tensor(self.clinical_vars["Survival.time"].values[self.test_indices]).to(torch.float32)
-
-    def __len__(self):
-        return len(self.scans)
-    
-    def preprocess_clinical_vars(self, clinical_vars):
-
-        numeric_features = ["age"]
-        categorical_features = ["Histology", "gender"]
-        ordinal_features = ["clinical.T.Stage", "Clinical.N.Stage", "Clinical.M.Stage", "Overall.Stage"]
-
-        numeric_transformer = Pipeline(
-            steps=[("scaler", StandardScaler())]
-        )
-        categorical_transformer = Pipeline(
-            steps=[
-                ("onehot", OneHotEncoder(handle_unknown="ignore")),
-            ]
-        )
-        ordinal_transformer = Pipeline(
-            steps=[
-                ("ordinal", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=np.nan)),
-            ]
-        )
-
-        preprocessor = ColumnTransformer(
-            transformers=[
-                ("num", numeric_transformer, numeric_features),
-                ("cat", categorical_transformer, categorical_features),
-                ("ord", ordinal_transformer, ordinal_features),
-            ]
-        )
-        train_clinical = preprocessor.fit_transform(clinical_vars)
-        test_clinical = preprocessor.transform(clinical_vars)
-        return train_clinical, test_clinical
-
-    def __getitem__(self, idx):
-        return (
-            self.scans[idx],  # Add channel dimension
-            self.events[idx],
-            self.times[idx],
-            self.clinical_vars[idx],
-        )
-    
-
 
 class TimeToDeath3DCNN(nn.Module):
     def __init__(self,
@@ -129,37 +61,6 @@ class TimeToDeath3DCNN(nn.Module):
         target = np.array([(i, j) for i, j in zip(events.detach().numpy(), times.detach().numpy())])
         survival_estimator = self.survival_estimator.fit(all_features, target) # here target = (events, times)
         return survival_estimator
-
-
-def train_model(model, train_dataset, batch_size, criterion, optimizer, writer, device, num_epochs, gamma):
-
-    dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
-    model.train()
-    for epoch in range(num_epochs):
-        epoch_loss = 0
-        for batch in dataloader: # clinical vars too
-            scans, events, times, clinical_vars = batch
-            scans, events, times, clinical_vars = scans.to(device), events.to(device), times.to(device), clinical_vars.to(device)
-
-            optimizer.zero_grad()
-            embedding, proba_thresh = model(scans)
-            all_features = np.concatenate((embedding.detach().numpy(), clinical_vars.detach().numpy()), axis=1)
-            survival_estimator = model.fit_survival_estimator(all_features, events, times)
-            surv_funcs = survival_estimator.predict_survival_function(all_features)
-            survival_times = compute_time_to_event(surv_funcs, thershold = proba_thresh)
-            loss = criterion(survival_times, events, times, gamma)
-            loss.backward()
-            optimizer.step()
-            epoch_loss += loss.item()
-
-        print(f"Epoch {epoch + 1}, Loss: {epoch_loss:.4f}")
-        avg_loss = epoch_loss / len(dataloader)
-        logger.info(f"Epoch {epoch + 1}/{num_epochs}, Loss: {avg_loss:.4f}")
-        writer.add_scalar("Loss/Train", avg_loss, epoch + 1)
-
-    return model
 
 
 def validate_model(model, dataloader, criterion, writer, device, epoch):
