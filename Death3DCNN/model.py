@@ -17,32 +17,55 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
 class TimeToDeath3DCNN(nn.Module):
-    def __init__(self,
-                 in_channels,
-                 out_channels_conv1,
-                 out_channels_conv2,
-                 out_channels_conv3,
-                 kernel_conv,
-                 kernel_pool,
-                 dropout):
-        
+    def __init__(
+        self,
+        in_channels,
+        out_channels_conv1,
+        out_channels_conv2,
+        out_channels_conv3,
+        kernel_conv,
+        kernel_pool,
+        dropout,
+    ):
+
         super(TimeToDeath3DCNN, self).__init__()
-        self.conv1 = nn.Conv3d(in_channels, out_channels_conv1, kernel_size=kernel_conv, stride=1, padding=1)
+        self.conv1 = nn.Conv3d(
+            in_channels,
+            out_channels_conv1,
+            kernel_size=kernel_conv,
+            stride=1,
+            padding=1,
+        )
         self.bn1 = nn.BatchNorm3d(out_channels_conv1)
         self.pool1 = nn.MaxPool3d(kernel_size=kernel_pool, stride=2)
 
-        self.conv2 = nn.Conv3d(out_channels_conv1, out_channels_conv2, kernel_size=kernel_conv, stride=1, padding=1)
+        self.conv2 = nn.Conv3d(
+            out_channels_conv1,
+            out_channels_conv2,
+            kernel_size=kernel_conv,
+            stride=1,
+            padding=1,
+        )
         self.bn2 = nn.BatchNorm3d(out_channels_conv2)
         self.pool2 = nn.MaxPool3d(kernel_size=kernel_pool, stride=2)
 
-        self.conv3 = nn.Conv3d(out_channels_conv2, out_channels_conv3, kernel_size=kernel_conv, stride=1, padding=1)
+        self.conv3 = nn.Conv3d(
+            out_channels_conv2,
+            out_channels_conv3,
+            kernel_size=kernel_conv,
+            stride=1,
+            padding=1,
+        )
         self.bn3 = nn.BatchNorm3d(out_channels_conv3)
         self.global_pool = nn.AdaptiveAvgPool3d(1)  # Global pooling
 
         self.fc1 = nn.Linear(out_channels_conv3, out_channels_conv2)
         self.dropout = nn.Dropout(dropout)
-        self.fc2 = nn.Linear(out_channels_conv2, 1)  # Output: Predicted probability threshold of survival
+        self.fc2 = nn.Linear(
+            out_channels_conv2, 1
+        )  # Output: Predicted probability threshold of survival
 
         self.survival_estimator = CoxPHSurvivalAnalysis()
 
@@ -56,10 +79,19 @@ class TimeToDeath3DCNN(nn.Module):
         proba_thresh = self.fc2(embedding)  # Predicted time-to-event
         proba_thresh = softmax(proba_thresh)
         return embedding, proba_thresh
-    
+
     def fit_survival_estimator(self, all_features, events, times):
-        target = np.array([(i, j) for i, j in zip(events.detach().cpu().numpy(), times.detach().cpu().numpy())])
-        survival_estimator = self.survival_estimator.fit(all_features, target) # here target = (events, times)
+        target = np.array(
+            [
+                (i, j)
+                for i, j in zip(
+                    events.detach().cpu().numpy(), times.detach().cpu().numpy()
+                )
+            ]
+        )
+        survival_estimator = self.survival_estimator.fit(
+            all_features, target
+        )  # here target = (events, times)
         return survival_estimator
 
 

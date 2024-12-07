@@ -17,6 +17,7 @@ class CensoredMSELoss(nn.Module):
         )
         return uncensored_loss + gamma * censored_loss
 
+
 class CoxPHLoss(nn.Module):
     """
     Negative partial log-likelihood of Cox's proportional hazards model.
@@ -48,11 +49,15 @@ class CoxPHLoss(nn.Module):
 
         # Assertions for input shapes and types
         if predictions.ndim != 2 or predictions.size(1) != 1:
-            raise ValueError(f"predictions must be of shape (batch_size, 1), but got {predictions.shape}.")
+            raise ValueError(
+                f"predictions must be of shape (batch_size, 1), but got {predictions.shape}."
+            )
 
         if event.ndim != predictions.ndim:
-            raise ValueError(f"event and predictions must have the same number of dimensions, "
-                             f"but got {event.ndim} and {predictions.ndim}.")
+            raise ValueError(
+                f"event and predictions must have the same number of dimensions, "
+                f"but got {event.ndim} and {predictions.ndim}."
+            )
 
         if riskset.ndim != 2:
             raise ValueError(f"riskset must have 2 dimensions, but got {riskset.ndim}.")
@@ -69,12 +74,15 @@ class CoxPHLoss(nn.Module):
 
         # Compute log-sum-exp over the risk set
         # Masked log-sum-exp
-        riskset_masked = torch.where(riskset, pred_t, torch.tensor(float('-inf'), device=pred_t.device))
-        logsumexp = torch.logsumexp(riskset_masked, dim=1, keepdim=True)  # Shape: (batch_size, 1)
+        riskset_masked = torch.where(
+            riskset, pred_t, torch.tensor(float("-inf"), device=pred_t.device)
+        )
+        logsumexp = torch.logsumexp(
+            riskset_masked, dim=1, keepdim=True
+        )  # Shape: (batch_size, 1)
 
         # Compute the Cox partial log-likelihood loss
         losses = event * (logsumexp - predictions)  # Shape: (batch_size, 1)
 
         # Return mean loss over the batch
         return losses.mean()
-
