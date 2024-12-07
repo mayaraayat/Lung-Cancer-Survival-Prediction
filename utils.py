@@ -57,7 +57,7 @@ class LungCancerDataset(Dataset):
             subject_scans = np.array([iio.imread(os.path.join(scans_path, file)) for file in subject_files])
             scans.append(subject_scans)
             
-        scans = np.stack(scans)
+        scans = np.array(scans)
         self.scans = torch.Tensor(scans).to(torch.float32).unsqueeze(1)
         
         if return_train:
