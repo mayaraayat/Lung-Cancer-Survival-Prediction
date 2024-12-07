@@ -58,7 +58,7 @@ class TimeToDeath3DCNN(nn.Module):
         return embedding, proba_thresh
     
     def fit_survival_estimator(self, all_features, events, times):
-        target = np.array([(i, j) for i, j in zip(events.detach().numpy(), times.detach().numpy())])
+        target = np.array([(i, j) for i, j in zip(events.detach().cpu().numpy(), times.detach().cpu().numpy())])
         survival_estimator = self.survival_estimator.fit(all_features, target) # here target = (events, times)
         return survival_estimator
 
