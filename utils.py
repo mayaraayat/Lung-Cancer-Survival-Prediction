@@ -55,13 +55,12 @@ class LungCancerDataset(Dataset):
         for subject in set(np.unique(subjects)):
             subject_files = [i for i in train_files if i[:3] == subject]
             subject_scans = np.array([iio.imread(os.path.join(scans_path, file)) for file in subject_files])
-            scans.append(subject_scans)
+            scans.append([subject_scans])
             
         scans = np.array(scans)
-        self.scans = torch.Tensor(scans).to(torch.float32).unsqueeze(1)
+        self.scans = torch.Tensor(scans).to(torch.float32)
         
         if return_train:
-            self.scans = torch.Tensor([iio.imread(os.path.join(scans_path_train, file)) for file in train_files]).to(torch.float32).unsqueeze(0)
 
             self.events = torch.Tensor(self.train_clinical["deadstatus.event"].values).to(torch.bool)
             self.times = torch.Tensor(self.train_clinical["Survival.time"].values).to(torch.float32)
