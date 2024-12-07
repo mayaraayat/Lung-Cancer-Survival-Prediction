@@ -26,10 +26,13 @@ class LungCancerDataset(Dataset):
         train_files = os.listdir(scans_path_train)
         test_files = os.listdir(scans_path_test)
 
-        subjects_train = [i[:3] for i in train_files]
-        subjects_test = [i[:3] for i in test_files]
+
+        subjects_train = sorted([i[:3] for i in train_files], key=lambda x: int(x))
+        subjects_test = sorted([i[:3] for i in test_files], key=lambda x: int(x))
 
         subjects_scans = np.unique(np.array(subjects_train + subjects_test))
+        # load the scans belonging to the same subject
+
         subjects_clinical  = clinical_vars["PatientID"].apply(lambda x: x[:3]).values
 
         for subject in subjects_scans:
@@ -40,6 +43,22 @@ class LungCancerDataset(Dataset):
         self.test_clinical = clinical_vars[clinical_vars['PatientID'].str.contains('|'.join(subjects_test), na=False)]
 
         if return_train:
+            subjects = np.unique(np.array(subjects_train))
+            scans_path = scans_path_train
+        else:
+            subjects = np.unique(np.array(subjects_test))
+            scans_path = scans_path_test
+
+        scans = []
+        for subject in set(np.unique(subjects)):
+            subject_files = [i for i in train_files if i[:3] == subject]
+            subject_scans = np.array([iio.imread(os.path.join(scans_path, file)) for file in subject_files])
+            scans.append(subject_scans)
+            
+        scans = np.stack(scans)
+        self.scans = torch.Tensor(scans).to(torch.float32).unsqueeze(1)
+        
+        if return_train:
             self.scans = torch.Tensor([iio.imread(os.path.join(scans_path_train, file)) for file in train_files]).to(torch.float32).unsqueeze(0)
 
             self.events = torch.Tensor(self.train_clinical["deadstatus.event"].values).to(torch.bool)
@@ -48,7 +67,6 @@ class LungCancerDataset(Dataset):
             self.test_clinical = self.test_clinical.drop(columns=["deadstatus.event", "Survival.time"])
             self.clinical_vars = torch.Tensor(self.preprocess_clinical_vars()[0]).to(torch.float32)
         else:
-            self.scans = torch.Tensor([iio.imread(os.path.join(scans_path_test, file)) for file in test_files]).to(torch.float32).unsqueeze(0)
 
             self.events = torch.Tensor(self.test_clinical["deadstatus.event"].values).to(torch.bool)
             self.times = torch.Tensor(self.test_clinical["Survival.time"].values).to(torch.float32)
