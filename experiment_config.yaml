@@ -14,17 +14,17 @@ dropout: 0.5
 
 # training params
 num_epochs: 10
-batch_size: 1
+batch_size: 5
 lr: 0.001
 gamma: 0.1
 # Data paths
-# scans_path_train: "/Users/VictoriaShevchenko/Documents/biohack/data/train"
-# scans_path_test: "/Users/VictoriaShevchenko/Documents/biohack/data/test"
-# clinical_vars_path: "/Users/VictoriaShevchenko/Documents/biohack/data/NSCLC-Radiomics-Lung1.clinical-version3-Oct-2019.csv"
+scans_path_train: "/Users/VictoriaShevchenko/Documents/biohack/data/train"
+scans_path_test: "/Users/VictoriaShevchenko/Documents/biohack/data/test"
+clinical_vars_path: "/Users/VictoriaShevchenko/Documents/biohack/data/NSCLC-Radiomics-Lung1.clinical-version3-Oct-2019.csv"
 
-scans_path_train: "/content/drive/MyDrive/hackathon_data/train"
-scans_path_test: "/content/drive/MyDrive/hackathon_data/test"
-clinical_vars_path: "/content/drive/MyDrive/hackathon_data/NSCLC-Radiomics-Lung1.clinical-version3-Oct-2019.csv"
+# scans_path_train: "/content/drive/MyDrive/hackathon_data/train"
+# scans_path_test: "/content/drive/MyDrive/hackathon_data/test"
+# clinical_vars_path: "/content/drive/MyDrive/hackathon_data/NSCLC-Radiomics-Lung1.clinical-version3-Oct-2019.csv"
 
 # Directory for saving results
 work_dir: "." # stick to absolute paths
