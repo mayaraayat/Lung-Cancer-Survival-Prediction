@@ -6,6 +6,7 @@ from sklearn.pipeline import Pipeline
 import pandas as pd
 import torch
 import os
+import imageio as iio
 
 def compute_time_to_event(surv_funcs, threshold=0.8):
     time_to_event = []

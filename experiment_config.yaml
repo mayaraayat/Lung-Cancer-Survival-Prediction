@@ -13,7 +13,9 @@ kernel_pool: 2
 dropout: 0.5
 
 # training params
-
+num_epochs: 100
+batch_size: 1
+lr: 0.001
 gamma: 0.1
 # Data paths
 scans_path_train: "/Users/VictoriaShevchenko/Documents/biohack/data/train"
