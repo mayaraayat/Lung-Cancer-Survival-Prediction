@@ -1,0 +1,42 @@
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, FunctionTransformer, OrdinalEncoder
+from sksurv.ensemble import RandomSurvivalForest
+import numpy as np
+import pandas as pd
+
+numerical_transformer = Pipeline(steps=[
+    ('scaler', StandardScaler())  
+])
+
+categorical_transformer = Pipeline(steps=[ 
+    ('onehot', OneHotEncoder(handle_unknown='ignore')) 
+])
+
+ordinal_transformer = Pipeline(steps=[
+    ('ordinal', OrdinalEncoder())
+])
+log_transformer = Pipeline(steps=[
+    ('log', FunctionTransformer(np.log1p, validate=True)) 
+])
+dates_transformer = Pipeline(steps=[
+    ('dates', FunctionTransformer(pd.to_datetime, validate=True))
+])
+
+# Combine transformers into a single ColumnTransformer
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numerical_transformer, numerical_features),
+        ('cat', categorical_transformer, categorical_features),
+        ('ord', ordinal_transformer, ordinal_features),
+        #('date', dates_transformer, ['date']),
+        #('log', log_transformer, log_transform_features)
+    ]
+)
+
+
+final_pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+])
+
+
