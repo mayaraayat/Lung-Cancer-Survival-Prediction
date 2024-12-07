@@ -11,6 +11,7 @@ Aim of the challenge is to predict the survival time of a patient (predict the r
 ### Resources
 
 All images and extracted metadata features come the NSCLC-Radiomics dataset.
+The tabular data are censored with the date of the end of the study (2021)
 
 ### Sample size
 
@@ -18,5 +19,12 @@ All images and extracted metadata features come the NSCLC-Radiomics dataset.
 
 ### Models
 
-Daft 'Funk' Model. 
+1. Daft 'Funk' Model.
+This model is based on DAFT model and adpated to predict survival time for patient affected by lung cancer.
 ![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mayaraayat/Lung-Cancer-Survival-Prediction/blob/main/DAFT_FUNK.ipynb)
+
+2. Death 3D CNN
+This model use a 3D CNN backbone to embed CT scan and then concatenate tabular vector with the image embedding.
+
+### Metrics
+We use c-index as a metric and RandomForestForSurvivalTime as a baseline.
