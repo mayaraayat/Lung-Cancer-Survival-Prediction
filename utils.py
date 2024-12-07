@@ -26,6 +26,8 @@ class LungCancerDataset(Dataset):
         train_files = os.listdir(scans_path_train)
         test_files = os.listdir(scans_path_test)
 
+        train_files = [f for f in train_files if not f.startswith('.')] 
+        test_files = [f for f in test_files if not f.startswith('.')] 
 
         subjects_train = sorted([i[:3] for i in train_files], key=lambda x: int(x))
         subjects_test = sorted([i[:3] for i in test_files], key=lambda x: int(x))
