@@ -19,4 +19,4 @@ All images and extracted metadata features come the NSCLC-Radiomics dataset.
 ### Models
 
 Daft 'Funk' Model. 
-![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mayaraayat/Lung-Cancer-Survival-Prediction/blob/main/DAFT_FUNK.ipynb
+![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mayaraayat/Lung-Cancer-Survival-Prediction/blob/main/DAFT_FUNK.ipynb)
