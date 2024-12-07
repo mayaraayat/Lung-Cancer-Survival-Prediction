@@ -1,5 +1,4 @@
 # Lung-Cancer-Survival-Prediction.
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/weiji14/deepbedmap/]
 
 Challenge provided by OWKIN company and organized by Entrepreneur First. Bio x Hack 2024 Paris.
 
@@ -20,5 +19,4 @@ All images and extracted metadata features come the NSCLC-Radiomics dataset.
 ### Models
 
 Daft 'Funk' Model. 
-https://colab.research.google.com/github/pytorch/pytorch.github.io/blob/master/assets/hub/facebookresearch_pytorchvideo_resnet.ipynb#scrollTo=1774c32b
 ![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mayaraayat/Lung-Cancer-Survival-Prediction/blob/main/DAFT_FUNK.ipynb
